@@ -1,14 +1,23 @@
 {% extends 'base.html' %}
 
-{% block content %}
-    <h1>{% block title %} Anchor earnings {{address}}{% endblock %}</h1>
-    <h2>Yield</h2>
-    Total Yield: {{y.yield}} <br/>
-    Holdings: {{y.ustHoldings}}<br/>
+{% block title %} Anchor Earnings {% endblock %}
 
+{% block content %}
+    <h1><img src="/static/anchorLogo.svg" height="100%"> Anchor Earnings 
+        <small class="text-muted">{{address}}</small>
+    </h1>
+    <h2>Yield</h2>
+
+    <dl class="row">
+        <dt class="col-sm-3">Total Yield:</dt>
+        <dd class="col-sm-9">{{'%0.2f'|format(y.yield|float)}} UST</dd>
+      
+        <dt class="col-sm-3">Holdings:</dt>
+        <dd class="col-sm-9">{{'%0.2f'|format(y.ustHoldings|float)}} UST</dd>
+    </dl>
 
     <h2>Deposits:</h2>
-    <table class="table">
+    <table class="table table-striped">
         <tr>
             <th>Time</th>
             <th>Deposit</th>
@@ -16,7 +25,7 @@
         {% for deposit in deposits %}
         <tr>
             <td>{{deposit.time}}</td>
-            <td>{{deposit.In}}Ust</td>
+            <td>{{'%0.2f'|format(deposit.In|float)}} UST</td>
         </tr>
         {% endfor %}
     </table>
