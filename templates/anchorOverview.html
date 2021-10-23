@@ -25,7 +25,7 @@
         {% for deposit in deposits %}
         <tr>
             <td>{{deposit.time}}</td>
-            <td>{{'%0.2f'|format(deposit.In|float)}} UST</td>
+            <td>{{'%0.2f'|format(deposit.Out|float)}} UST</td>
         </tr>
         {% endfor %}
     </table>
