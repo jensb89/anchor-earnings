@@ -1,4 +1,4 @@
-# Foobar
+# Anchor earnings
 
 Flask website that shows all deposits + earnings from Anchor protocol.
 
