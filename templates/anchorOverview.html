@@ -29,5 +29,47 @@
         </tr>
         {% endfor %}
     </table>
+
+    <canvas id="myChart" height="100"></canvas>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/2.9.3/Chart.bundle.min.js"></script>
+    <script>
+        var dat_1 = {
+        label: 'Yield',
+        borderColor: 'blue',
+        type: 'line',
+        data: [
+        {% for histYield in h %}
+        { t: new Date("{{histYield.time}}"), y:{{histYield.yield}} },
+        {% endfor %}
+        ]
+        };
+
+    var config = {
+          data: {
+            datasets: [dat_1]
+          },
+          options: {
+            scales: {
+              xAxes: [{
+                type: 'time',
+                time: {
+                  unit: 'day'
+                },
+              }],
+              yAxes: [{
+                ticks: {
+                  beginAtZero: true
+                }
+              }]
+            }
+          }
+    };
+
+    window.onload = function() {
+      var ctx = document.getElementById('myChart').getContext('2d');
+      window.myChart = new Chart(ctx, config);
+    };
+</script>
     
 {% endblock %}
