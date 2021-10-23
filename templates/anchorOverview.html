@@ -1,0 +1,24 @@
+{% extends 'base.html' %}
+
+{% block content %}
+    <h1>{% block title %} Anchor earnings {{address}}{% endblock %}</h1>
+    <h2>Yield</h2>
+    Total Yield: {{y.yield}} <br/>
+    Holdings: {{y.ustHoldings}}<br/>
+
+
+    <h2>Deposits:</h2>
+    <table class="table">
+        <tr>
+            <th>Time</th>
+            <th>Deposit</th>
+        </tr>
+        {% for deposit in deposits %}
+        <tr>
+            <td>{{deposit.time}}</td>
+            <td>{{deposit.In}}Ust</td>
+        </tr>
+        {% endfor %}
+    </table>
+    
+{% endblock %}
