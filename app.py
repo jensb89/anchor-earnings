@@ -26,7 +26,10 @@ def anchorErningsForAdress(address):
     # Graph data
     histData = getHistData(deposits)
 
-    return render_template('anchorOverview.html', deposits = deposits, address=address, y=totalYield, h=histData)
+    # get Eur rate
+    rateEurUsd = getEurUsdRateFromTerraPriceOracle()
+
+    return render_template('anchorOverview.html', deposits = deposits, address=address, y=totalYield, h=histData, eurRate = rateEurUsd )
 
 
 def getHistData(deposits):
@@ -53,3 +56,22 @@ def getHistData(deposits):
             return histYields
     
     return histYields
+
+def getEurUsdRateFromTerraPriceOracle():
+    response = requests.get("https://lcd.terra.dev/oracle/denoms/exchange_rates")
+    if response.status_code == 200:
+        ret = response.json()
+        terraEur = 1
+        terraUsd = 1
+        for terraPrice in ret["result"]:
+            if terraPrice["denom"] == "ueur":
+                terraEur = float(terraPrice["amount"])
+            if terraPrice["denom"] == "uusd":
+                terraUsd = float(terraPrice["amount"])
+        if terraEur == 0 or terraUsd == 0:
+            return None
+        return terraEur / terraUsd
+    elif response.status_code == 404:
+        print('Not Found.')
+    else:
+        raise Exception("Response failed!")

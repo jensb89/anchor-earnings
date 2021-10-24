@@ -24,17 +24,16 @@
 {% block title %} Anchor Earnings {% endblock %}
 
 {% block content %}
-    <h1><img src="/static/anchorLogo.svg" height="100%"> Anchor Earnings 
-        <small class="text-muted">{{address}}</small>
-    </h1>
+    <h1><img src="/static/anchorLogo.svg" height="100%"> Anchor Earnings <br/> </h1>
+    <h2><small class="text-muted">{{address}}</small></h2>
     <h2>Yield</h2>
 
     <dl class="row">
         <dt class="col-sm-3">Total Yield:</dt>
-        <dd class="col-sm-9">{{'%0.2f'|format(y.yield|float)}} UST</dd>
+        <dd class="col-sm-9">{{'%0.2f'|format(y.yield|float)}} UST (<small class="text-muted">{{'%0.2f'|format(y.yield * eurRate|float)}}EUR</small>)</dd>
       
         <dt class="col-sm-3">Holdings:</dt>
-        <dd class="col-sm-9">{{'%0.2f'|format(y.ustHoldings|float)}} UST</dd>
+        <dd class="col-sm-9">{{'%0.2f'|format(y.ustHoldings|float)}} UST (<small class="text-muted">{{'%0.2f'|format(y.ustHoldings * eurRate|float)}}EUR</small>)</dd>
     </dl>
 
     <h2>Deposits:</h2>
