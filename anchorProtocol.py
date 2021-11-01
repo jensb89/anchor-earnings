@@ -7,10 +7,14 @@ def getAnchorDeposits(address = ""):
   elif response.status_code == 404:
       print('Not Found.')
   else:
-      raise Exception("Response failed!")
+      print(response.status_code)
+      #raise Exception("Response failed!") #todo: better error handling
   
   deposits = []
   res = response.json()
+
+  if not "txs" in res:
+    return deposits
 
   for item in res["txs"]:
     for msg in item["tx"]["value"]["msg"]:

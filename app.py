@@ -1,13 +1,35 @@
-from flask import Flask, render_template
+from flask import Flask, render_template,request,redirect,json
 from anchorProtocol import getAnchorDeposits, calculateYield, getCurrentAUstExchangeRate
 import requests
 import datetime
+from werkzeug.exceptions import HTTPException
 
 app = Flask(__name__)
 
 @app.route("/")
 def index():
-    return render_template('index.html')
+        return render_template('index.html')
+
+@app.errorhandler(HTTPException)
+def handle_exception(e):
+    """Return JSON instead of HTML for HTTP errors."""
+    # start with the correct headers and status code from the error
+    response = e.get_response()
+    # replace the body with JSON
+    response.data = json.dumps({
+        "code": e.code,
+        "name": e.name,
+        "description": e.description,
+    })
+    response.content_type = "application/json"
+    return response
+
+@app.route("/redirectToWallet", methods = ['POST', 'GET'])
+def redirectToWallet():
+    if request.method == 'POST':
+        wallet = request.form['walletAddress']
+        print(wallet)
+        return redirect(f"/address/{wallet}")
 
 @app.route("/address/<address>")
 def anchorErningsForAdress(address):
