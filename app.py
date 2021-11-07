@@ -3,7 +3,9 @@ from anchorProtocol import getAnchorDeposits, calculateYield, getCurrentAUstExch
 import requests
 import datetime
 from werkzeug.exceptions import HTTPException
+from cachetools import cached, TTLCache
 
+cache = TTLCache(maxsize=100, ttl=7200)
 app = Flask(__name__)
 
 @app.route("/")
@@ -53,11 +55,15 @@ def anchorErningsForAdress(address):
 
     return render_template('anchorOverview.html', deposits = deposits, address=address, y=totalYield, h=histData, eurRate = rateEurUsd )
 
-
-def getHistData(deposits):
+@cached(cache)
+def getHistoricalAUstRate():
     # we use flipside to get historical aust data. Is there a better way by using terra API directly ??
     res = requests.get("https://api.flipsidecrypto.com/api/v2/queries/1de96d09-4d77-4ad7-b0c8-e907e86fdcb7/data/latest")
     res = res.json()
+    return res
+
+def getHistData(deposits):
+    res = getHistoricalAUstRate()
     histYields = []
     for elem in res:
         timeStr = elem["DAYTIMESTAMP"]

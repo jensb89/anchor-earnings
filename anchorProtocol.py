@@ -1,4 +1,5 @@
 import requests
+from string import Template
 
 def getAnchorDeposits(address = ""):
   response = requests.get('https://fcd.terra.dev/v1/txs?offset=0&limit=100&account=' + address)
@@ -140,3 +141,26 @@ def calculateYield(deposits, currentaUstRate):
 def getCurrentAUstExchangeRate():
     ret = requests.get("https://lcd.terra.dev/wasm/contracts/terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s/store?query_msg={\"epoch_state\":{}}")
     return ret.json()["result"]["exchange_rate"]
+
+def getCurrentAUstBalance(accountAddress=""):
+    query =  Template("""query {
+            WasmContractsContractAddressStore(
+                ContractAddress : "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu"
+                QueryMsg: $msg
+            ) {
+            Height
+            Result
+            __typename
+          }
+        }
+        """)
+
+    message = '''"{\\"balance\\":{\\"address\\":\\"{0}\\"}}"'''.replace('{0}', accountAddress)     
+    query = query.substitute(msg=message)
+
+    # Execute Graph QL query
+    request = requests.post('https://mantle.terra.dev', json={'query': query})
+    if request.status_code == 200:
+        return request.json()["data"]["WasmContractsContractAddressStore"]["Result"]["balance"]
+    else:
+        raise Exception("Graphl QL Query failed to run by returning code of {}. {}".format(request.status_code, query))
