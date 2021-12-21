@@ -66,8 +66,8 @@ def getHistData(deposits):
     res = getHistoricalAUstRate()
     histYields = []
     for elem in res:
-        timeStr = elem["DAYTIMESTAMP"]
         time = datetime.datetime.fromisoformat(timeStr)
+        timeStr = datetime.datetime.strftime(time, "%Y-%m-%d")
         austVal = elem["AUST_VALUE"]
         
         startDateReached = True
