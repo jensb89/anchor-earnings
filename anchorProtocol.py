@@ -39,6 +39,10 @@ def getAnchorDeposits(address = ""):
               val = next(attribs)
               assert(val["key"] == "contract_address" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
               val = next(attribs)
+              if(val["key"] == "action" and val["value"] != "deposit_stable"):
+                #skip all non-deposits: borrow_stable, repay_stable, claim_rewards, ... 
+                # https://docs.anchorprotocol.com/smart-contracts/money-market/market
+                continue
               assert(val["key"] == "action" and val["value"] == "deposit_stable")
               print("deposit")
               val = next(attribs)
