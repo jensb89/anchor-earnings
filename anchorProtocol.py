@@ -2,24 +2,39 @@ import requests
 from string import Template
 
 def getAnchorDeposits(address = ""):
-  response = requests.get('https://fcd.terra.dev/v1/txs?offset=0&limit=100&account=' + address)
-  if response.status_code == 200:
-      print('Success!')
-  elif response.status_code == 404:
-      print('Not Found.')
-  else:
-      print(response.status_code)
-      #raise Exception("Response failed!") #todo: better error handling
-  
+  endReached = False
   deposits = []
-  res = response.json()
+  reqItems = []
+  offset = 0
+  while not(endReached):
+    response = requests.get('https://fcd.terra.dev/v1/txs?offset=' + str(offset) +'&limit=100&account=' + address)
+    if response.status_code == 200:
+        print('Success!')
+    elif response.status_code == 404:
+        print('Not Found.')
+    else:
+        print(response.status_code)
+        #raise Exception("Response failed!") #todo: better error handling
+    
+    res = response.json()
 
-  if not "txs" in res:
+    if not "txs" in res:
+      endReached = True
+      break
+    
+    if len(res['txs']) < 100:
+      endReached = True
+    
+    if len(res['txs']) > 0:
+      reqItems.append(res["txs"])
+    
+    offset = offset + 100
+
+  if len(reqItems)==0:
     return deposits
 
-  for item in res["txs"]:
+  for item in reqItems[0]:
     for msg in item["tx"]["value"]["msg"]:
-
       # Anchor contract found (deposit)
       if msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
 
