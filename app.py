@@ -66,7 +66,7 @@ def getHistData(deposits):
     res = getHistoricalAUstRate()
     histYields = []
     for elem in res:
-        time = datetime.datetime.fromisoformat(timeStr)
+        time = datetime.datetime.fromisoformat(elem["DAYTIMESTAMP"])
         timeStr = datetime.datetime.strftime(time, "%Y-%m-%d")
         austVal = elem["AUST_VALUE"]
         
