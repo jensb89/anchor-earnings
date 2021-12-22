@@ -91,7 +91,13 @@ def getAnchorDeposits(address = ""):
 
                 # Save timestamp and data in a dictionary
                 time = item["timestamp"]
-                deposits.append({"In": float(mintAmount)/1E6, "Out":float(depositAmount)/1E6, "fee":float(fee)/1E6, "feeUnit":"ust", "time":time})
+                txId = item["txhash"]
+                deposits.append({"In": float(mintAmount)/1E6, 
+                                 "Out":float(depositAmount)/1E6, 
+                                 "fee":float(fee)/1E6, 
+                                 "feeUnit":"ust", 
+                                 "time":time,
+                                 "txId":txId})
 
 
         # Anchor contract found (redemption)
@@ -149,7 +155,13 @@ def getAnchorDeposits(address = ""):
                 assert(val["key"] == "amount" and val["value"] == burnAmount) #todo: always like that?             
                 # Save timestamp and data in a dictionary
                 time = item["timestamp"]
-                deposits.append({"In": -float(burnAmount)/1E6, "Out":-float(redeemAmount)/1E6, "fee":float(fee)/1E6, "feeUnit":"ust", "time":time}) #todo: check
+                txId = item["txhash"]
+                deposits.append({"In": -float(burnAmount)/1E6, 
+                                 "Out":-float(redeemAmount)/1E6, 
+                                 "fee":float(fee)/1E6, 
+                                 "feeUnit":"ust", 
+                                 "time":time, #todo: check
+                                 "txId":txId})
   return deposits
 
 

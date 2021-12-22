@@ -41,11 +41,13 @@
         <tr>
             <th>Time</th>
             <th>Deposit</th>
+            <th>Tx</th>
         </tr>
         {% for deposit in deposits %}
         <tr>
             <td>{{deposit.time}}</td>
             <td>{{'%0.2f'|format(deposit.Out|float)}} UST</td>
+            <td><a href="https://finder.terra.money/mainnet/tx/{{'%s'|format(deposit.txId)}}">{{'%s'|format(deposit.txId|truncate(10, True))}}</a></td>
         </tr>
         {% endfor %}
     </table>
