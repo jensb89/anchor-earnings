@@ -51,6 +51,10 @@ def getAnchorDeposits(address = ""):
           feeItem = item["tx"]["value"]["fee"]["amount"][0]
           assert(feeItem["denom"]=="uusd")
           fee = feeItem["amount"]
+          
+          #Skip items without a log (failed transactions)
+          if not "logs" in item:
+            continue
 
           # Find deposit and mint amount
           for log in item["logs"]:
@@ -60,7 +64,9 @@ def getAnchorDeposits(address = ""):
                 # Go through "from_contract"
                 attribs = iter(event["attributes"])
                 val = next(attribs)
-                assert(val["key"] == "contract_address" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
+                if(val["key"] == "contract_address" and val["value"] != "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s"):
+                  # skip all non anchor contracts
+                  continue
                 val = next(attribs)
                 if(val["key"] == "action" and val["value"] != "deposit_stable"):
                   #skip all non-deposits: borrow_stable, repay_stable, claim_rewards, ... 
