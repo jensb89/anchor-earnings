@@ -28,6 +28,12 @@
     <h2><small class="text-muted">{{address}}</small></h2>
     <h2>Yield</h2>
 
+    {% if error %}
+    <div class="alert alert-danger" role="alert">
+      {{error}}
+    </div>
+    {% endif %}
+
     <dl class="row">
         <dt class="col-sm-3">Total Yield:</dt>
         <dd class="col-sm-9">{{'%0.2f'|format(y.yield|float)}} UST (<small class="text-muted">{{'%0.2f'|format(y.yield * eurRate|float)}}EUR</small>)</dd>
