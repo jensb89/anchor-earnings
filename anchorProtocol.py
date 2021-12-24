@@ -7,6 +7,9 @@ def getAnchorDeposits(address = ""):
   deposits = []
   reqItems = []
   offset = 0
+  warnings = ""
+  aUSTTransferWarningShown = False
+
   while not(endReached):
     response = requests.get('https://fcd.terra.dev/v1/txs?offset=' + str(offset) +'&limit=100&account=' + address)
     if response.status_code == 200:
@@ -43,7 +46,7 @@ def getAnchorDeposits(address = ""):
   for page in reqItems:
     for item in page:
       for msg in item["tx"]["value"]["msg"]:
-        # Anchor contract found (deposit)
+        # Anchor market maker contract found (deposit)
         if msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
 
           # get fee
@@ -106,7 +109,7 @@ def getAnchorDeposits(address = ""):
                                  "txId":txId})
 
 
-        # Anchor contract found (redemption)
+        # Anchor aUST contract found (redemption)
         if msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
 
           # get fee
@@ -128,6 +131,41 @@ def getAnchorDeposits(address = ""):
                   #e.g. interacting with pylon contract (deposit via anchor market but send to pylon)
                   continue
                 val = next(attribs)
+
+                #aUST transfer
+                if(val["key"] == "action" and val["value"] == "transfer"): 
+                  receive = None
+                  val_from = next(attribs)
+                  val_to = next(attribs)
+                  assert(val_from["key"] == "from" and val_to["key"] == "to")
+
+                  if val_from["value"] != address and val_to["value"] == address:
+                    receive = True
+                  elif val_from["value"] == address and val_to["value"] != address:
+                    receive = False
+                  
+                  if receive == None:
+                    continue
+
+                  val = next(attribs)
+                  assert(val["key"]=="amount")
+                  aUstAmount = val["value"]
+
+                  # Save timestamp and data in a dictionary
+                  time = item["timestamp"]
+                  txId = item["txhash"]
+                  deposits.append({"In": float(aUstAmount)/1E6 if receive else -float(aUstAmount)/1E6, #todo:better naming of In and Out
+                                  "Out":0,
+                                  "fee":float(fee)/1E6, 
+                                  "feeUnit":"ust", 
+                                  "time":time,
+                                  "txId":txId})
+                  if not(aUSTTransferWarningShown):
+                    warnings+="aUST transfer detected. aUST transfers are not fully supported yet! The calculated yields could be erroneous!"
+                    aUSTTransferWarningShown = True
+                  continue
+
+
                 assert(val["key"] == "action" and val["value"] == "send")
                 print("redeem aust")
                 val = next(attribs)
@@ -168,7 +206,7 @@ def getAnchorDeposits(address = ""):
                                  "feeUnit":"ust", 
                                  "time":time, #todo: check
                                  "txId":txId})
-  return deposits
+  return deposits, warnings
 
 
 def calculateYield(deposits, currentaUstRate):
@@ -179,11 +217,11 @@ def calculateYield(deposits, currentaUstRate):
         r = d["Out"]/d["In"]
         aUstAmount += d["In"]
         # Yield
-        y = (currentaUstRate - r) * d["In"]
+        y = (currentaUstRate - r) * d["In"] if d["Out"]!=0 else 0 #todo: calculate right rate for aUST transfers
         rates.append(r)
         yields.append(y)
     
-    out = {'yield': sum(yields), 'ustHoldings': aUstAmount * currentaUstRate}
+    out = {'yield': sum(yields), 'ustHoldings': aUstAmount * currentaUstRate, 'aUSTHoldings':aUstAmount}
     return out
 
 def getCurrentAUstExchangeRate():

@@ -38,27 +38,28 @@ def anchorErningsForAdress(address):
 
     error = ""
     # call anchor ...
-    try:
-        deposits = getAnchorDeposits(address)
-        currentRate = float(getCurrentAUstExchangeRate())
-        totalYield = calculateYield(deposits, currentRate)
-    except AssertionError:
-        error = "Something went wrong with parsing the data. Please open a ticket: https://github.com/jensb89/anchor-earnings/issues"
-        deposits = []
-        totalYield = {'yield': 0, 'ustHoldings': 0}
-        currentRate = 0
-    except BaseException:
-        error = "Something went wrong. Please open a ticket:  https://github.com/jensb89/anchor-earnings/issues"
-        deposits = []
-        totalYield = {'yield': 0, 'ustHoldings': 0}
-        currentRate = 0
+    #try:
+    deposits,warnings = getAnchorDeposits(address)
+    currentRate = float(getCurrentAUstExchangeRate())
+    totalYield = calculateYield(deposits, currentRate)
+    #except AssertionError:
+    #    error = "Something went wrong with parsing the data. Please open a ticket: https://github.com/jensb89/anchor-earnings/issues"
+    #    deposits = []
+    #    totalYield = {'yield': 0, 'ustHoldings': 0}
+    #    currentRate = 0
+    #except BaseException:
+    #    error = "Something went wrong. Please open a ticket:  https://github.com/jensb89/anchor-earnings/issues"
+    #    deposits = []
+    #    totalYield = {'yield': 0, 'ustHoldings': 0}
+    #    currentRate = 0
+    #requests.exceptions.ConnectionError
     
     # Add UTC time in s
     minTime = datetime.datetime.now()
     for deposit in deposits:
         deposit["unixTimestamp"] = datetime.datetime.strptime(deposit["time"], "%Y-%m-%dT%H:%M:%SZ")
         minTime = min(minTime, deposit["unixTimestamp"])
-        deposit["rate"] = deposit["Out"] / deposit["In"]
+        deposit["rate"] = deposit["Out"] / deposit["In"] if deposit["Out"] != 0 else getHistoricalAUstRate(deposit["unixTimestamp"])
     
     # Graph data
     histData = getHistData(deposits)
@@ -66,14 +67,20 @@ def anchorErningsForAdress(address):
     # get Eur rate
     rateEurUsd = getEurUsdRateFromTerraPriceOracle()
 
-    return render_template('anchorOverview.html', deposits = deposits, address=address, y=totalYield, h=histData, eurRate = rateEurUsd, error=error )
+    return render_template('anchorOverview.html', deposits = deposits, address=address, y=totalYield, h=histData, eurRate = rateEurUsd, error=error, warnings=warnings )
 
 @cached(cache)
-def getHistoricalAUstRate():
+def getHistoricalAUstRate(dateTime=None):
     # we use flipside to get historical aust data. Is there a better way by using terra API directly ??
     res = requests.get("https://api.flipsidecrypto.com/api/v2/queries/1de96d09-4d77-4ad7-b0c8-e907e86fdcb7/data/latest")
     res = res.json()
-    return res
+    if dateTime == None:
+        return res
+    else:
+        for elem in res:
+            time = datetime.datetime.fromisoformat(elem["DAYTIMESTAMP"])
+            if dateTime < time:
+                return elem["AUST_VALUE"]
 
 def getHistData(deposits):
     res = getHistoricalAUstRate()

@@ -34,12 +34,19 @@
     </div>
     {% endif %}
 
+    {% if warnings %}
+    <div class="alert alert-danger" role="alert">
+      {{warnings}}
+    </div>
+    {% endif %}
+
     <dl class="row">
         <dt class="col-sm-3">Total Yield:</dt>
         <dd class="col-sm-9">{{'%0.2f'|format(y.yield|float)}} UST (<small class="text-muted">{{'%0.2f'|format(y.yield * eurRate|float)}}EUR</small>)</dd>
       
         <dt class="col-sm-3">Holdings:</dt>
         <dd class="col-sm-9">{{'%0.2f'|format(y.ustHoldings|float)}} UST (<small class="text-muted">{{'%0.2f'|format(y.ustHoldings * eurRate|float)}}EUR</small>)</dd>
+        <dd class="col-sm-9 offset-3">{{'%0.2f'|format(y.aUSTHoldings|float)}} aUST</dd>
     </dl>
 
     <h2>Deposits:</h2>
@@ -50,11 +57,19 @@
             <th>Tx</th>
         </tr>
         {% for deposit in deposits %}
+        {% if deposit.Out|float != 0 %}
         <tr>
             <td>{{deposit.time}}</td>
             <td>{{'%0.2f'|format(deposit.Out|float)}} UST</td>
             <td><a href="https://finder.terra.money/mainnet/tx/{{'%s'|format(deposit.txId)}}">{{'%s'|format(deposit.txId|truncate(10, True))}}</a></td>
         </tr>
+        {% else %}
+        <tr>
+          <td>{{deposit.time}}</td>
+          <td>{{'%0.2f'|format(deposit.In|float)}} aUST</td>
+          <td><a href="https://finder.terra.money/mainnet/tx/{{'%s'|format(deposit.txId)}}">{{'%s'|format(deposit.txId|truncate(10, True))}}</a></td>
+        </tr>
+        {% endif %}
         {% endfor %}
     </table>
 
