@@ -38,21 +38,21 @@ def anchorErningsForAdress(address):
 
     error = ""
     # call anchor ...
-    #try:
-    deposits,warnings = getAnchorDeposits(address)
-    currentRate = float(getCurrentAUstExchangeRate())
-    totalYield = calculateYield(deposits, currentRate)
-    #except AssertionError:
-    #    error = "Something went wrong with parsing the data. Please open a ticket: https://github.com/jensb89/anchor-earnings/issues"
-    #    deposits = []
-    #    totalYield = {'yield': 0, 'ustHoldings': 0}
-    #    currentRate = 0
-    #except BaseException:
-    #    error = "Something went wrong. Please open a ticket:  https://github.com/jensb89/anchor-earnings/issues"
-    #    deposits = []
-    #    totalYield = {'yield': 0, 'ustHoldings': 0}
-    #    currentRate = 0
-    #requests.exceptions.ConnectionError
+    try:
+        deposits,warnings = getAnchorDeposits(address)
+        currentRate = float(getCurrentAUstExchangeRate())
+        totalYield = calculateYield(deposits, currentRate)
+    except AssertionError:
+        error = "Something went wrong with parsing the data. Please open a ticket: https://github.com/jensb89/anchor-earnings/issues"
+        deposits = []
+        totalYield = {'yield': 0, 'ustHoldings': 0}
+        currentRate = 0
+    except BaseException:
+        error = "Something went wrong. Please open a ticket:  https://github.com/jensb89/anchor-earnings/issues"
+        deposits = []
+        totalYield = {'yield': 0, 'ustHoldings': 0}
+        currentRate = 0
+    #todo: requests.exceptions.ConnectionError
     
     # Add UTC time in s
     minTime = datetime.datetime.now()
