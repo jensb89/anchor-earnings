@@ -79,7 +79,7 @@ def getHistoricalAUstRate(dateTime=None):
     else:
         for elem in res:
             time = datetime.datetime.fromisoformat(elem["DAYTIMESTAMP"])
-            if dateTime < time:
+            if dateTime > time:
                 return elem["AUST_VALUE"]
 
 def getHistData(deposits):
