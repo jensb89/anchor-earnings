@@ -1,6 +1,7 @@
 import requests
 from string import Template
 from time import sleep
+from datetime import datetime, timedelta
 
 def getAnchorDeposits(address = ""):
   endReached = False
@@ -161,7 +162,9 @@ def getAnchorDeposits(address = ""):
                                   "time":time,
                                   "txId":txId})
                   if not(aUSTTransferWarningShown):
-                    warnings+="aUST transfer detected. aUST transfers are not fully supported yet! The calculated yields could be erroneous!"
+                    warnings+="aUST transfer detected. aUST transfers are not fully supported yet: "\
+                              "The aUST to UST rate is only estimated due to missing API endpoints."\
+                              "The calculated yields could be erroneous (off by a day from the time of the aUST transfer)!"
                     aUSTTransferWarningShown = True
                   continue
 
@@ -209,7 +212,7 @@ def getAnchorDeposits(address = ""):
   return deposits, warnings
 
 
-def calculateYield(deposits, currentaUstRate):
+def calculateYield(deposits, currentaUstRate, historicalRates):
     aUstAmount= 0
     rates = []
     yields = []
@@ -217,12 +220,27 @@ def calculateYield(deposits, currentaUstRate):
         r = d["Out"]/d["In"]
         aUstAmount += d["In"]
         # Yield
-        y = (currentaUstRate - r) * d["In"] if d["Out"]!=0 else 0 #todo: calculate right rate for aUST transfers
+        if d["Out"]!=0:
+          y = (currentaUstRate - r) * d["In"] 
+        else:
+          y = (currentaUstRate - getClosestHistoricalRate(historicalRates, d["time"])) * d["In"]  #aUST transfers
+          #note: these are not exact numbers yet, just an estimate of the closest rate that we have for the given date 
         rates.append(r)
         yields.append(y)
     
     out = {'yield': sum(yields), 'ustHoldings': aUstAmount * currentaUstRate, 'aUSTHoldings':aUstAmount}
     return out
+
+def getClosestHistoricalRate(historicalRates, date):
+    if len(historicalRates) == 0:
+      return 0 #will lead to too high yield. todo: check historical rates request at the beginning. It should not be empty here!
+      
+    searchDate = datetime.strptime(date, "%Y-%m-%dT%H:%M:%SZ")
+    def minimizeFunc(x):
+       d =  x[0]
+       delta =  d - searchDate if d > searchDate else timedelta.max
+       return delta
+    return min(historicalRates, key = minimizeFunc)[1]
 
 def getCurrentAUstExchangeRate():
     ret = requests.get("https://lcd.terra.dev/wasm/contracts/terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s/store?query_msg={\"epoch_state\":{}}")
