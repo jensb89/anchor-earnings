@@ -111,13 +111,16 @@ def getAnchorDeposits(address = ""):
 
 
         # Anchor aUST contract found (redemption)
-        if msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
+        elif msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
 
           # get fee
           assert(len(item["tx"]["value"]["fee"]["amount"]) == 1)
           feeItem = item["tx"]["value"]["fee"]["amount"][0]
           assert(feeItem["denom"]=="uusd")
           fee = feeItem["amount"]
+
+          if not "logs" in item:
+            continue
 
           # Find deposit and mint amount
           for log in item["logs"]:
@@ -209,6 +212,56 @@ def getAnchorDeposits(address = ""):
                                  "feeUnit":"ust", 
                                  "time":time, #todo: check
                                  "txId":txId})
+          
+        else:
+          # No aUST contract execution found (no anchor deposit or redemption or aUST transfer). In that case we loop all transaction events 
+          # to search for aUST amoutns received by other contracts (e.g. mirror contracts). See https://github.com/jensb89/anchor-earnings/issues/2
+          if not "logs" in item:
+            continue
+          for log in item["logs"]:
+            events = log["events"]
+            for event in events:
+              if event["type"] == "from_contract":
+                attributes = event["attributes"]
+                l = len(attributes)
+                for index, attribute in enumerate(attributes):
+                  if attribute["key"] == "contract_address" and attribute["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
+                    # check if aUST is transfered into our wallet
+                    if index + 4 < l:
+                      receive = None
+                      if (attributes[index+1]["key"] == "action" and attributes[index+1]["value"] == "transfer" and
+                          attributes[index+2]["key"] == "from" and
+                          attributes[index+3]["key"] == "to" and attributes[index+3]["value"] == address and
+                          attributes[index+4]["key"] == "amount"):
+
+                          aUstAmount = attributes[index+4]["value"]
+                          receive = True
+                    
+                      elif (attributes[index+1]["key"] == "action" and attributes[index+1]["value"] == "transfer" and
+                            attributes[index+2]["key"] == "from" and attributes[index+2]["value"] == address and
+                            attributes[index+3]["key"] == "to"  and
+                            attributes[index+4]["key"] == "amount"):
+
+                            aUstAmount = attributes[index+4]["value"]
+                            receive = False
+                      
+                      if receive != None:    
+                          #Save timestamp and data in a dictionary
+                          time = item["timestamp"]
+                          txId = item["txhash"]
+                          deposits.append({"In": float(aUstAmount)/1E6 if receive else -float(aUstAmount)/1E6, #todo:better naming of In and Out
+                                          "Out":0,
+                                          "fee":float(0), #todo: fee 
+                                          "feeUnit":"ust",
+                                          "time":time,
+                                          "txId":txId})
+                          if not(aUSTTransferWarningShown):
+                            warnings+="aUST transfer detected. aUST transfers are not fully supported yet: "\
+                                      "The aUST to UST rate is only estimated due to missing API endpoints."\
+                                      "The calculated yields could be erroneous (off by a day from the time of the aUST transfer)!"
+                            aUSTTransferWarningShown = True
+                          continue
+
   return deposits, warnings
 
 

@@ -50,11 +50,13 @@ def anchorErningsForAdress(address):
         deposits = []
         totalYield = {'yield': 0, 'ustHoldings': 0, 'aUSTHoldings': 0}
         currentRate = 0
+        warnings = ""
     except BaseException:
         error = "Something went wrong. Please open a ticket:  https://github.com/jensb89/anchor-earnings/issues"
         deposits = []
         totalYield = {'yield': 0, 'ustHoldings': 0, 'aUSTHoldings': 0}
         currentRate = 0
+        warnings = ""
     #todo: requests.exceptions.ConnectionError
     
     # Add UTC time in s
