@@ -3,7 +3,7 @@ from string import Template
 from time import sleep
 from datetime import datetime, timedelta
 
-def getAnchorDeposits(address = ""):
+def getAnchorDeposits(address = "", checkAllLogs=False):
   endReached = False
   deposits = []
   reqItems = []
@@ -216,7 +216,7 @@ def getAnchorDeposits(address = ""):
         else:
           # No aUST contract execution found (no anchor deposit or redemption or aUST transfer). In that case we loop all transaction events 
           # to search for aUST amoutns received by other contracts (e.g. mirror contracts). See https://github.com/jensb89/anchor-earnings/issues/2
-          if not "logs" in item:
+          if not "logs" in item or not checkAllLogs:
             continue
           for log in item["logs"]:
             events = log["events"]

@@ -1,3 +1,4 @@
+from audioop import add
 from flask import Flask, render_template,request,redirect,json
 from anchorProtocol import getAnchorDeposits, calculateYield, getCurrentAUstExchangeRate, getClosestHistoricalRate
 import requests
@@ -34,7 +35,7 @@ def redirectToWallet():
         return redirect(f"/address/{wallet}")
 
 @app.route("/address/<address>")
-def anchorErningsForAdress(address):
+def anchorErningsForAdress(address, checkAllLogs=False):
 
     # First, we query all historical rates. We need them for the plot and to calculate the yield for aUST transfers
     historicalRates = getHistoricalAUstRate()
@@ -42,7 +43,7 @@ def anchorErningsForAdress(address):
     error = ""
     # call anchor ...
     try:
-        deposits,warnings = getAnchorDeposits(address)
+        deposits,warnings = getAnchorDeposits(address, checkAllLogs=checkAllLogs)
         currentRate = float(getCurrentAUstExchangeRate())
         totalYield = calculateYield(deposits, currentRate, historicalRates)
     except AssertionError:
@@ -73,6 +74,10 @@ def anchorErningsForAdress(address):
     rateEurUsd = getEurUsdRateFromTerraPriceOracle()
 
     return render_template('anchorOverview.html', deposits = deposits, address=address, y=totalYield, h=histData, eurRate = rateEurUsd, error=error, warnings=warnings )
+
+@app.route("/address/<address>/full")
+def anchorErningsForAdressFull(address):
+    return anchorErningsForAdress(address, checkAllLogs=True)
 
 @cached(cache)
 def getHistoricalAUstRate():
