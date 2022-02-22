@@ -20,7 +20,7 @@ def getAnchorDeposits(address = "", checkAllLogs=False):
     else:
         print("Error:" + str(response.status_code))
         #raise Exception("Response failed!") #todo: better error handling
-    
+        
     res = response.json()
 
     if not "txs" in res:
@@ -170,48 +170,52 @@ def getAnchorDeposits(address = "", checkAllLogs=False):
                               "The calculated yields could be erroneous (off by a day from the time of the aUST transfer)!"
                     aUSTTransferWarningShown = True
                   continue
-
-
-                assert(val["key"] == "action" and val["value"] == "send")
-                print("redeem aust")
-                val = next(attribs)
-                assert(val["key"] == "from" and val["value"] == address) #our wallet
-                val = next(attribs)
-                assert(val["key"] == "to")
-                if val["value"] != "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
-                  # if not the anchor contract, then we may interact with a mirror contract here (e.g. using aust as collateral
-                  # we skip these cases for now (todo: handle mirror contract interactions)
-                  continue
-                val = next(attribs)
-                assert(val["key"] == "amount")
-                burnAmount = val["value"] #string
-                val = next(attribs)
-                assert(val["key"] == "contract_address" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s") # anchor contract
-                val = next(attribs)
-                assert(val["key"] == "action" and val["value"] == "redeem_stable") # anchor 
-                val = next(attribs)
-                assert(val["key"] == "burn_amount" and val["value"] == burnAmount) #todo: always like that?
-                val = next(attribs)
-                assert(val["key"] == "redeem_amount")
-                redeemAmount = val["value"]
-                print(redeemAmount)
-                val = next(attribs)
-                assert(val["key"] == "contract_address" and val["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu")
-                val = next(attribs)
-                assert(val["key"] == "action" and val["value"] == "burn")
-                val = next(attribs)
-                assert(val["key"] == "from" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
-                val = next(attribs)
-                assert(val["key"] == "amount" and val["value"] == burnAmount) #todo: always like that?             
-                # Save timestamp and data in a dictionary
-                time = item["timestamp"]
-                txId = item["txhash"]
-                deposits.append({"In": -float(burnAmount)/1E6, 
-                                 "Out":-float(redeemAmount)/1E6, 
-                                 "fee":float(fee)/1E6, 
-                                 "feeUnit":"ust", 
-                                 "time":time, #todo: check
-                                 "txId":txId})
+                
+                elif(val["key"] == "action" and val["value"] == "send"):
+                  #redeem aust
+                  print(item["txhash"])
+                  assert(val["key"] == "action" and val["value"] == "send")
+                  print("redeem aust")
+                  val = next(attribs)
+                  assert(val["key"] == "from" and val["value"] == address) #our wallet
+                  val = next(attribs)
+                  assert(val["key"] == "to")
+                  if val["value"] != "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
+                    # if not the anchor contract, then we may interact with a mirror contract here (e.g. using aust as collateral
+                    # we skip these cases for now (todo: handle mirror contract interactions)
+                    continue
+                  val = next(attribs)
+                  assert(val["key"] == "amount")
+                  burnAmount = val["value"] #string
+                  val = next(attribs)
+                  assert(val["key"] == "contract_address" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s") # anchor contract
+                  val = next(attribs)
+                  assert(val["key"] == "action" and val["value"] == "redeem_stable") # anchor 
+                  val = next(attribs)
+                  assert(val["key"] == "burn_amount" and val["value"] == burnAmount) #todo: always like that?
+                  val = next(attribs)
+                  assert(val["key"] == "redeem_amount")
+                  redeemAmount = val["value"]
+                  print(redeemAmount)
+                  val = next(attribs)
+                  assert(val["key"] == "contract_address" and val["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu")
+                  val = next(attribs)
+                  assert(val["key"] == "action" and val["value"] == "burn")
+                  val = next(attribs)
+                  assert(val["key"] == "from" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
+                  val = next(attribs)
+                  assert(val["key"] == "amount" and val["value"] == burnAmount) #todo: always like that?             
+                  # Save timestamp and data in a dictionary
+                  time = item["timestamp"]
+                  txId = item["txhash"]
+                  deposits.append({"In": -float(burnAmount)/1E6, 
+                                  "Out":-float(redeemAmount)/1E6, 
+                                  "fee":float(fee)/1E6, 
+                                  "feeUnit":"ust", 
+                                  "time":time, #todo: check
+                                  "txId":txId})
+                else:
+                  warnings+="Ignored unknown aUST transaction with tx hash " + item["txhash"] + "\n"
           
         else:
           # No aUST contract execution found (no anchor deposit or redemption or aUST transfer). In that case we loop all transaction events 
