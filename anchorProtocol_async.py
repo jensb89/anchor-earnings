@@ -2,12 +2,9 @@ import requests
 from string import Template
 from time import sleep
 from datetime import datetime, timedelta
-import concurrent.futures
+import asyncio
 import random
-
-class TooManyRequests(Exception):
-    pass
-
+import concurrent.futures
 class AnchorProtocolHandler(object):
   def __init__(self, address, checkAllLogs=False) -> None:
       self.address = address
@@ -20,36 +17,32 @@ class AnchorProtocolHandler(object):
   def getAnchorTxs(self):
     # Get all txs
     self.txs = self.queryTxs(self.address)
-    self.handleTxs()
+    asyncio.run(self.handleTxs())
     return self.deposits, self.warnings
   
-  def handleTxs(self):
-    #with concurrent.futures.ProcessPoolExecutor() as executor:
-    with concurrent.futures.ThreadPoolExecutor() as executor:
-      #  futures = [executor.submit(self.checkEvent,item, event) for event in events]
-      for page in self.txs:
-        for item in page:
-          msgs = item["tx"]["value"]["msg"]
-          # Check the item message only for txs with less than 2 messages. Airdrops can have > 2k messages
-          if len(msgs) < 2:
-            for msg in item["tx"]["value"]["msg"]:
-              executor.submit(self.handleItemMessage,item, msg)
-          # For airdrops etc, we just check the logs and not the message, this way we don't check the logs multiple times 
-          else: 
-            executor.submit(self.handleAustInLogs,item)
+  async def handleTxs(self):
+    #await asyncio.gather(* [self.handleItemMessage(item, msg) for item in page for page in self.txs, for msg in item["tx"]["value"]["msg"] ])
+    tasks = []
+    for page in self.txs:
+      for item in page:
+        for msg in item["tx"]["value"]["msg"]:
+          task = asyncio.create_task(self.handleItemMessage(item, msg))
+          tasks.append(task)
+          #await self.handleItemMessage(item, msg)
+    await asyncio.gather(*tasks)
 
-  def handleItemMessage(self, item, msg):
+  async def handleItemMessage(self, item, msg):
     # Anchor market maker contract found (deposit)
     if msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
-      self.handleAnchorMarketContract(item)
+      await self.handleAnchorMarketContract(item)
     
     # Anchor aUST contract found (redemption)
     elif msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
-      self.handleAnchorAUSTContract(item)
+      await self.handleAnchorAUSTContract(item)
 
     # Else search all logs for aUST ins/outs
     else:
-      self.handleAustInLogs(item)
+      await self.handleAustInLogs(item)
 
   def queryTxs(self, address=""):
     endReached = False
@@ -66,13 +59,12 @@ class AnchorProtocolHandler(object):
 
     while not(endReached):
       user_agent = random.choice(user_agent_list)
+      print("Calling %s", 'https://fcd.terra.dev/v1/txs?offset=' + str(offset) +'&limit=100&account=' + address)
       response = requests.get('https://fcd.terra.dev/v1/txs?offset=' + str(offset) +'&limit=100&account=' + address, headers={'User-Agent': user_agent})
       if response.status_code == 200:
           print('Success!')
       elif response.status_code == 404:
           print('Not Found.')
-      elif response.status_code == 429:
-        raise TooManyRequests
       else:
           print("Error:" + str(response.status_code))
           #raise Exception("Response failed!") #todo: better error handling
@@ -95,11 +87,11 @@ class AnchorProtocolHandler(object):
         endReached = True
 
       # Sleep 10ms to prevent too many requests (427 error)
-      sleep(0.01)
+      sleep(1)
     
     return reqItems
 
-  def handleAnchorAUSTContract(self, item):
+  async def handleAnchorAUSTContract(self, item):
     # get fee
     assert(len(item["tx"]["value"]["fee"]["amount"]) == 1)
     feeItem = item["tx"]["value"]["fee"]["amount"][0]
@@ -114,6 +106,7 @@ class AnchorProtocolHandler(object):
       events = log["events"]
       for event in events:
         if event["type"] == "from_contract":
+          #print(item["height"])
           # Go through "from_contract"
           attribs = iter(event["attributes"])
           val = next(attribs)
@@ -159,7 +152,9 @@ class AnchorProtocolHandler(object):
           
           elif(val["key"] == "action" and val["value"] == "send"):
             #redeem aust
+            print(item["txhash"])
             assert(val["key"] == "action" and val["value"] == "send")
+            print("redeem aust")
             val = next(attribs)
             assert(val["key"] == "from" and val["value"] == self.address) #our wallet
             val = next(attribs)
@@ -180,6 +175,7 @@ class AnchorProtocolHandler(object):
             val = next(attribs)
             assert(val["key"] == "redeem_amount")
             redeemAmount = val["value"]
+            print(redeemAmount)
             val = next(attribs)
             assert(val["key"] == "contract_address" and val["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu")
             val = next(attribs)
@@ -200,19 +196,38 @@ class AnchorProtocolHandler(object):
           else:
             self.warnings+="Ignored unknown aUST transaction with tx hash " + item["txhash"] + "\n"
 
-  def handleAustInLogs(self, item):
+  async def handleAustInLogs(self, item):
     # No aUST contract execution found (no anchor deposit or redemption or aUST transfer). In that case we loop all transaction events 
     # to search for aUST amoutns received by other contracts (e.g. mirror contracts). See https://github.com/jensb89/anchor-earnings/issues/2
     if not "logs" in item or not self.checkAllLogs:
       return
-    
+    #asyncio.gather( * [ await self.checkEvents(item, log["events"]) for log in item["logs"] ] )
+    tasks = []
     for log in item["logs"]:
       events = log["events"]
-      with concurrent.futures.ThreadPoolExecutor() as executor:
-        for event in events:
-          executor.submit(self.checkEvent,item, event)
+      #self.checkEvents(item, events)
+      #with concurrent.futures.ProcessPoolExecutor() as executor:
+      #  futures = [executor.submit(self.checkEvent,item, event) for event in events]
+      await asyncio.gather( * [ self.checkEvent(item, event) for event in events ] )
+      
+      #for event in events:
+      #  self.checkEvent(item, event)
+        #args = (item, event)
+        #asyncio.get_event_loop().run_in_executor(None, self.checkEvent, *args)
+        #task = asyncio.create_task(self.checkEvent(item, event))
+        #tasks.append(task)
+    #for t in tasks:
+    #  await t
+
+  #async def checkEvents(self, item, events):
+    #asyncio.gather(*[self.checkEvent(item, event) for event in events])
+  #  tasks = []
     
-  def checkEvent(self, item, event):
+  async def checkEvent(self, item, event):
+    #print("here")
+    #print(item["txhash"])
+    #print(event["type"])
+    return True
     if event["type"] == "from_contract":
       attributes = event["attributes"]
       l = len(attributes)
@@ -254,7 +269,7 @@ class AnchorProtocolHandler(object):
                   aUSTTransferWarningShown = True
                 continue
   
-  def handleAnchorMarketContract(self, item):
+  async def handleAnchorMarketContract(self, item):
     # get fee
     assert(len(item["tx"]["value"]["fee"]["amount"]) == 1)
     feeItem = item["tx"]["value"]["fee"]["amount"][0]
@@ -282,14 +297,17 @@ class AnchorProtocolHandler(object):
             # https://docs.anchorprotocol.com/smart-contracts/money-market/market
             continue
           assert(val["key"] == "action" and val["value"] == "deposit_stable")
+          print("deposit")
           val = next(attribs)
           assert(val["key"] == "depositor" and val["value"] == self.address) #our wallet
           val = next(attribs)
           assert(val["key"] == "mint_amount")
           mintAmount = val["value"]
+          print("Mint amount: %s" % mintAmount)
           val = next(attribs)
           assert(val["key"] == "deposit_amount")
           depositAmount = val["value"]
+          print("Deposit amount: %s" % depositAmount)
 
           # Last checks
           val = next(attribs)
@@ -310,6 +328,244 @@ class AnchorProtocolHandler(object):
                                 "feeUnit":"ust", 
                                 "time":time,
                                 "txId":txId})
+
+
+
+def getAnchorDeposits(address = "", checkAllLogs=False):
+  deposits = []
+  reqItems = []
+  warnings = ""
+  aUSTTransferWarningShown = False
+
+  # Get all txs
+  reqItems = []#queryTxs(address)
+
+  if len(reqItems)==0:
+    return deposits
+  
+  for page in reqItems:
+    for item in page:
+      for msg in item["tx"]["value"]["msg"]:
+        # Anchor market maker contract found (deposit)
+        if msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
+
+          # get fee
+          assert(len(item["tx"]["value"]["fee"]["amount"]) == 1)
+          feeItem = item["tx"]["value"]["fee"]["amount"][0]
+          assert(feeItem["denom"]=="uusd")
+          fee = feeItem["amount"]
+          
+          #Skip items without a log (failed transactions)
+          if not "logs" in item:
+            continue
+
+          # Find deposit and mint amount
+          for log in item["logs"]:
+            events = log["events"]
+            for event in events:
+              if event["type"] == "from_contract":
+                # Go through "from_contract"
+                attribs = iter(event["attributes"])
+                val = next(attribs)
+                if(val["key"] == "contract_address" and val["value"] != "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s"):
+                  # skip all non anchor contracts
+                  continue
+                val = next(attribs)
+                if(val["key"] == "action" and val["value"] != "deposit_stable"):
+                  #skip all non-deposits: borrow_stable, repay_stable, claim_rewards, ... 
+                  # https://docs.anchorprotocol.com/smart-contracts/money-market/market
+                  continue
+                assert(val["key"] == "action" and val["value"] == "deposit_stable")
+                print("deposit")
+                val = next(attribs)
+                assert(val["key"] == "depositor" and val["value"] == address) #our wallet
+                val = next(attribs)
+                assert(val["key"] == "mint_amount")
+                mintAmount = val["value"]
+                print("Mint amount: %s" % mintAmount)
+                val = next(attribs)
+                assert(val["key"] == "deposit_amount")
+                depositAmount = val["value"]
+                print("Deposit amount: %s" % depositAmount)
+
+                # Last checks
+                val = next(attribs)
+                assert(val["key"] == "contract_address" and val["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu")
+                val = next(attribs)
+                assert(val["key"] == "action" and val["value"] == "mint")
+                val = next(attribs)
+                assert(val["key"] == "to" and val["value"] == address)
+                val = next(attribs)
+                assert(val["key"] == "amount" and val["value"] == mintAmount)
+
+                # Save timestamp and data in a dictionary
+                time = item["timestamp"]
+                txId = item["txhash"]
+                deposits.append({"In": float(mintAmount)/1E6, 
+                                 "Out":float(depositAmount)/1E6, 
+                                 "fee":float(fee)/1E6, 
+                                 "feeUnit":"ust", 
+                                 "time":time,
+                                 "txId":txId})
+
+
+        # Anchor aUST contract found (redemption)
+        elif msg["type"]=="wasm/MsgExecuteContract" and msg["value"]["contract"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
+
+          # get fee
+          assert(len(item["tx"]["value"]["fee"]["amount"]) == 1)
+          feeItem = item["tx"]["value"]["fee"]["amount"][0]
+          assert(feeItem["denom"]=="uusd")
+          fee = feeItem["amount"]
+
+          if not "logs" in item:
+            continue
+
+          # Find deposit and mint amount
+          for log in item["logs"]:
+            events = log["events"]
+            for event in events:
+              if event["type"] == "from_contract":
+                #print(item["height"])
+                # Go through "from_contract"
+                attribs = iter(event["attributes"])
+                val = next(attribs)
+                if( val["key"] == "contract_address" and val["value"] != "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu" ):
+                  #e.g. interacting with pylon contract (deposit via anchor market but send to pylon)
+                  continue
+                val = next(attribs)
+
+                #aUST transfer
+                if(val["key"] == "action" and val["value"] == "transfer"): 
+                  receive = None
+                  val_from = next(attribs)
+                  val_to = next(attribs)
+                  assert(val_from["key"] == "from" and val_to["key"] == "to")
+
+                  if val_from["value"] != address and val_to["value"] == address:
+                    receive = True
+                  elif val_from["value"] == address and val_to["value"] != address:
+                    receive = False
+                  
+                  if receive == None:
+                    continue
+
+                  val = next(attribs)
+                  assert(val["key"]=="amount")
+                  aUstAmount = val["value"]
+
+                  # Save timestamp and data in a dictionary
+                  time = item["timestamp"]
+                  txId = item["txhash"]
+                  deposits.append({"In": float(aUstAmount)/1E6 if receive else -float(aUstAmount)/1E6, #todo:better naming of In and Out
+                                  "Out":0,
+                                  "fee":float(fee)/1E6, 
+                                  "feeUnit":"ust", 
+                                  "time":time,
+                                  "txId":txId})
+                  if not(aUSTTransferWarningShown):
+                    warnings+="aUST transfer detected. aUST transfers are not fully supported yet: "\
+                              "The aUST to UST rate is only estimated due to missing API endpoints."\
+                              "The calculated yields could be erroneous (off by a day from the time of the aUST transfer)!"
+                    aUSTTransferWarningShown = True
+                  continue
+                
+                elif(val["key"] == "action" and val["value"] == "send"):
+                  #redeem aust
+                  print(item["txhash"])
+                  assert(val["key"] == "action" and val["value"] == "send")
+                  print("redeem aust")
+                  val = next(attribs)
+                  assert(val["key"] == "from" and val["value"] == address) #our wallet
+                  val = next(attribs)
+                  assert(val["key"] == "to")
+                  if val["value"] != "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s":
+                    # if not the anchor contract, then we may interact with a mirror contract here (e.g. using aust as collateral
+                    # we skip these cases for now (todo: handle mirror contract interactions)
+                    continue
+                  val = next(attribs)
+                  assert(val["key"] == "amount")
+                  burnAmount = val["value"] #string
+                  val = next(attribs)
+                  assert(val["key"] == "contract_address" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s") # anchor contract
+                  val = next(attribs)
+                  assert(val["key"] == "action" and val["value"] == "redeem_stable") # anchor 
+                  val = next(attribs)
+                  assert(val["key"] == "burn_amount" and val["value"] == burnAmount) #todo: always like that?
+                  val = next(attribs)
+                  assert(val["key"] == "redeem_amount")
+                  redeemAmount = val["value"]
+                  print(redeemAmount)
+                  val = next(attribs)
+                  assert(val["key"] == "contract_address" and val["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu")
+                  val = next(attribs)
+                  assert(val["key"] == "action" and val["value"] == "burn")
+                  val = next(attribs)
+                  assert(val["key"] == "from" and val["value"] == "terra1sepfj7s0aeg5967uxnfk4thzlerrsktkpelm5s")
+                  val = next(attribs)
+                  assert(val["key"] == "amount" and val["value"] == burnAmount) #todo: always like that?             
+                  # Save timestamp and data in a dictionary
+                  time = item["timestamp"]
+                  txId = item["txhash"]
+                  deposits.append({"In": -float(burnAmount)/1E6, 
+                                  "Out":-float(redeemAmount)/1E6, 
+                                  "fee":float(fee)/1E6, 
+                                  "feeUnit":"ust", 
+                                  "time":time, #todo: check
+                                  "txId":txId})
+                else:
+                  warnings+="Ignored unknown aUST transaction with tx hash " + item["txhash"] + "\n"
+          
+        else:
+          # No aUST contract execution found (no anchor deposit or redemption or aUST transfer). In that case we loop all transaction events 
+          # to search for aUST amoutns received by other contracts (e.g. mirror contracts). See https://github.com/jensb89/anchor-earnings/issues/2
+          if not "logs" in item or not checkAllLogs:
+            continue
+          for log in item["logs"]:
+            events = log["events"]
+            for event in events:
+              if event["type"] == "from_contract":
+                attributes = event["attributes"]
+                l = len(attributes)
+                for index, attribute in enumerate(attributes):
+                  if attribute["key"] == "contract_address" and attribute["value"] == "terra1hzh9vpxhsk8253se0vv5jj6etdvxu3nv8z07zu":
+                    # check if aUST is transfered into our wallet
+                    if index + 4 < l:
+                      receive = None
+                      if (attributes[index+1]["key"] == "action" and attributes[index+1]["value"] == "transfer" and
+                          attributes[index+2]["key"] == "from" and
+                          attributes[index+3]["key"] == "to" and attributes[index+3]["value"] == address and
+                          attributes[index+4]["key"] == "amount"):
+
+                          aUstAmount = attributes[index+4]["value"]
+                          receive = True
+                    
+                      elif (attributes[index+1]["key"] == "action" and attributes[index+1]["value"] == "transfer" and
+                            attributes[index+2]["key"] == "from" and attributes[index+2]["value"] == address and
+                            attributes[index+3]["key"] == "to"  and
+                            attributes[index+4]["key"] == "amount"):
+
+                            aUstAmount = attributes[index+4]["value"]
+                            receive = False
+                      
+                      if receive != None:    
+                          #Save timestamp and data in a dictionary
+                          time = item["timestamp"]
+                          txId = item["txhash"]
+                          deposits.append({"In": float(aUstAmount)/1E6 if receive else -float(aUstAmount)/1E6, #todo:better naming of In and Out
+                                          "Out":0,
+                                          "fee":float(0), #todo: fee 
+                                          "feeUnit":"ust",
+                                          "time":time,
+                                          "txId":txId})
+                          if not(aUSTTransferWarningShown):
+                            warnings+="aUST transfer detected. aUST transfers are not fully supported yet: "\
+                                      "The aUST to UST rate is only estimated due to missing API endpoints."\
+                                      "The calculated yields could be erroneous (off by a day from the time of the aUST transfer)!"
+                            aUSTTransferWarningShown = True
+                          continue
+
+  return deposits, warnings
 
 
 def calculateYield(deposits, currentaUstRate, historicalRates):
