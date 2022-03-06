@@ -1,6 +1,6 @@
 from audioop import add
 from flask import Flask, render_template,request,redirect,json
-from anchorProtocol import getAnchorDeposits, calculateYield, getCurrentAUstExchangeRate, getClosestHistoricalRate
+from anchorProtocol import TooManyRequests, calculateYield, getCurrentAUstExchangeRate, getClosestHistoricalRate, AnchorProtocolHandler
 import requests
 import datetime
 from werkzeug.exceptions import HTTPException
@@ -43,11 +43,18 @@ def anchorErningsForAdress(address, checkAllLogs=False):
     error = ""
     # call anchor ...
     try:
-        deposits,warnings = getAnchorDeposits(address, checkAllLogs=checkAllLogs)
+        anchor = AnchorProtocolHandler(address, checkAllLogs=checkAllLogs)
+        deposits,warnings = anchor.getAnchorTxs()
         currentRate = float(getCurrentAUstExchangeRate())
         totalYield = calculateYield(deposits, currentRate, historicalRates)
     except AssertionError:
         error = "Something went wrong with parsing the data. Please open a ticket: https://github.com/jensb89/anchor-earnings/issues"
+        deposits = []
+        totalYield = {'yield': 0, 'ustHoldings': 0, 'aUSTHoldings': 0}
+        currentRate = 0
+        warnings = ""
+    except TooManyRequests:
+        error = "Too many requests to https://fcd.terra.dev/. Try at a later time or raise a ticket if the error is shown all the time: https://github.com/jensb89/anchor-earnings/issues"
         deposits = []
         totalYield = {'yield': 0, 'ustHoldings': 0, 'aUSTHoldings': 0}
         currentRate = 0
