@@ -94,8 +94,8 @@ class AnchorProtocolHandler(object):
       else:
         endReached = True
 
-      # Sleep 10ms to prevent too many requests (427 error)
-      sleep(0.01)
+      # Sleep 500ms to prevent too many requests (427 error)
+      sleep(0.5)
     
     return reqItems
 
@@ -198,7 +198,9 @@ class AnchorProtocolHandler(object):
                                   "time":time, #todo: check
                                   "txId":txId})
           else:
-            self.warnings+="Ignored unknown aUST transaction with tx hash " + item["txhash"] + "\n"
+            # Check the logs instead
+            self.handleAustInLogs(item)
+            self.warnings+="Unknown aUST transaction with tx hash " + item["txhash"] + "\n"
 
   def handleAustInLogs(self, item):
     # No aUST contract execution found (no anchor deposit or redemption or aUST transfer). In that case we loop all transaction events 
