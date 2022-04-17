@@ -94,8 +94,8 @@ class AnchorProtocolHandler(object):
       else:
         endReached = True
 
-      # Sleep 500ms to prevent too many requests (427 error)
-      sleep(0.5)
+      # Sleep 1s to prevent too many requests (427 error)
+      sleep(1)
     
     return reqItems
 
